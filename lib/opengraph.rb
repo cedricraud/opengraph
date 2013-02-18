@@ -9,18 +9,24 @@ module OpenGraph
   #
   # Pass <tt>false</tt> for the second argument if you want to
   # see invalid (i.e. missing a required attribute) data.
-  def self.fetch(uri, strict = true)
-    parse(RestClient.get(uri).body, strict)
+  # Pass <tt>true</tt> for the third argument to infer the value
+  # of some metadata by other tags (title, description) 
+  def self.fetch(uri, strict = true, infer = false)
+    parse(RestClient.get(uri).body, strict, infer)
   rescue RestClient::Exception, SocketError
     false
   end
   
-  def self.parse(html, strict = true)
+  def self.parse(html, strict = true, infer = false)
     doc = Nokogiri::HTML.parse(html)
     page = OpenGraph::Object.new
+    page['title'] = doc.css('title').first.content.to_s if infer && doc.css('title').first
     doc.css('meta').each do |m|
       if m.attribute('property') && m.attribute('property').to_s.match(/^og:(.+)$/i)
         page[$1.gsub('-','_')] = m.attribute('content').to_s
+      end
+      if infer && m.attribute('name') && m.attribute('name').to_s == 'description'
+        page['description'] = m.attribute('content').to_s
       end
     end
     return false if page.keys.empty?
